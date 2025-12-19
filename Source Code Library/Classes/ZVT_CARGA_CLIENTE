@@ -1,0 +1,48 @@
+CLASS zvt_carga_cliente DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC .
+
+  PUBLIC SECTION.
+    INTERFACES if_oo_adt_classrun.
+  PRIVATE SECTION.
+ENDCLASS.
+
+CLASS zvt_carga_cliente IMPLEMENTATION.
+
+METHOD if_oo_adt_classrun~main.
+  DATA lt_carga TYPE TABLE OF zvtdt_cliente.
+  DATA lt_fail  TYPE TABLE OF zvtdt_cliente.
+
+  lt_carga = VALUE #(
+    ( mandt = sy-mandt id_cliente = '000006' cpf = '98765432100' nome = 'Mariana Oliveira' telefone = '21991234567' email = 'mariana.oliveira@email.com' status_cliente = 'A' )
+    ( mandt = sy-mandt id_cliente = '000007' cpf = '45678912300' nome = 'Rafael Costa' telefone = '31999887766' email = 'rafael.costa@email.com' status_cliente = 'I' )
+    ( mandt = sy-mandt id_cliente = '000008' cpf = '32165498700' nome = 'Fernanda Almeida' telefone = '41988776655' email = 'fernanda.almeida@email.com' status_cliente = 'A' )
+    ( mandt = sy-mandt id_cliente = '000009' cpf = '15975348600' nome = 'Lucas Pereira' telefone = '51977665544' email = 'lucas.pereira@email.com' status_cliente = 'A' )
+    ( mandt = sy-mandt id_cliente = '000010' cpf = '74185296300' nome = 'Patricia Nogueira' telefone = '11993445566' email = 'patricia.nogueira@email.com' status_cliente = 'A' )
+    ( mandt = sy-mandt id_cliente = '000011' cpf = '85296374100' nome = 'Bruno Martins' telefone = '21998877665' email = 'bruno.martins@email.com' status_cliente = 'I' )
+    ( mandt = sy-mandt id_cliente = '000012' cpf = '96385274100' nome = 'Juliana Rocha' telefone = '31997766554' email = 'juliana.rocha@email.com' status_cliente = 'A' )
+  ).
+
+  " Tenta inserir linha a linha para identificar falhas (duplicidade, etc.)
+  LOOP AT lt_carga ASSIGNING FIELD-SYMBOL(<ls_cli>).
+    INSERT zvtdt_cliente FROM <ls_cli>.
+    IF sy-subrc <> 0.
+      APPEND <ls_cli> TO lt_fail.
+    ENDIF.
+  ENDLOOP.
+
+  IF lt_fail IS INITIAL.
+    COMMIT WORK AND WAIT.
+    out->write( |Dados registrados com sucesso: { lines( lt_carga ) }| ).
+  ELSE.
+    ROLLBACK WORK.
+    out->write( |Falharam { lines( lt_fail ) } de { lines( lt_carga ) }. Exibindo IDs:| ).
+
+    LOOP AT lt_fail ASSIGNING FIELD-SYMBOL(<ls_fail>).
+      out->write( | - { <ls_fail>-id_cliente }| ).
+    ENDLOOP.
+  ENDIF.
+ENDMETHOD.
+
+ENDCLASS.
