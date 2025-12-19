@@ -1,0 +1,16 @@
+@EndUserText.label : 'Tabela de clientes da locadora de veículos'
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #A
+@AbapCatalog.dataMaintenance : #ALLOWED
+define table zvtdt_cliente {
+
+  key mandt      : mandt not null;
+  key id_cliente : zvtde_cliente not null;
+  cpf            : zvtde_cpf;
+  nome           : zvtde_nome;
+  telefone       : zvtde_telefone;
+  email          : zvtde_email;
+  status_cliente : zvtde_status_cli;
+
+}
