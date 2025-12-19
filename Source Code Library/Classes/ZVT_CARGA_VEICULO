@@ -1,0 +1,48 @@
+CLASS zvt_carga_veiculo DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    INTERFACES if_oo_adt_classrun.
+  PRIVATE SECTION.
+ENDCLASS.
+
+CLASS zvt_carga_veiculo IMPLEMENTATION.
+
+  METHOD if_oo_adt_classrun~main.
+
+    DATA lt_carga TYPE TABLE OF zvtdt_veiculo.
+    DATA lt_fail  TYPE TABLE OF zvtdt_veiculo.
+
+    lt_carga = VALUE #( ( mandt = sy-mandt id_veiculo = '000005' tipo_veiculo = 'CR' modelo = 'Corolla' marca = 'Toyota' ano = '2023' placa = 'ABC1D23' status_veiculo = 'D' )
+                        ( mandt = sy-mandt id_veiculo = '000006' tipo_veiculo = 'CR' modelo = 'Onix' marca = 'Chevrolet' ano = '2024' placa = 'DEF4G56' status_veiculo = 'D' )
+                        ( mandt = sy-mandt id_veiculo = '000007' tipo_veiculo = 'CR' modelo = 'HB20' marca = 'Hyundai' ano = '2022' placa = 'GHI7J89' status_veiculo = 'D' )
+                        ( mandt = sy-mandt id_veiculo = '000008' tipo_veiculo = 'CA' modelo = 'Compass' marca = 'Jeep' ano = '2021' placa = 'JKL0M12' status_veiculo = 'D' )
+                        ( mandt = sy-mandt id_veiculo = '000009' tipo_veiculo = 'CA' modelo = 'Sprinter' marca = 'Mercedes' ano = '2020' placa = 'NOP3Q45' status_veiculo = 'D' )
+                        ( mandt = sy-mandt id_veiculo = '000010' tipo_veiculo = 'CR' modelo = 'Gol' marca = 'Volkswagen' ano = '2019' placa = 'QRS6T78' status_veiculo = 'D' )
+                        ( mandt = sy-mandt id_veiculo = '000011' tipo_veiculo = 'CR' modelo = 'Argo' marca = 'Fiat' ano = '2021' placa = 'TUV9W01' status_veiculo = 'D' ) ).
+
+    " Inserção linha a linha para identificar falhas (duplicidade de chave, etc.)
+    LOOP AT lt_carga ASSIGNING FIELD-SYMBOL(<ls_vei>).
+      INSERT zvtdt_veiculo FROM <ls_vei>.
+      IF sy-subrc <> 0.
+        APPEND <ls_vei> TO lt_fail.
+      ENDIF.
+    ENDLOOP.
+
+    IF lt_fail IS INITIAL.
+      COMMIT WORK AND WAIT.
+      out->write( |Veículos registrados com sucesso: { lines( lt_carga ) }| ).
+    ELSE.
+      ROLLBACK WORK.
+      out->write( |Falharam { lines( lt_fail ) } de { lines( lt_carga ) }. Exibindo chaves:| ).
+
+      LOOP AT lt_fail ASSIGNING FIELD-SYMBOL(<ls_fail>).
+        out->write( | - ID { <ls_fail>-id_veiculo } / Tipo { <ls_fail>-tipo_veiculo } / Placa { <ls_fail>-placa }| ).
+      ENDLOOP.
+    ENDIF.
+
+  ENDMETHOD.
+
+ENDCLASS.
