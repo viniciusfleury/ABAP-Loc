@@ -1,0 +1,31 @@
+*&---------------------------------------------------------------------*
+*& Include z_saploc_vt_io1
+*&---------------------------------------------------------------------*
+
+MODULE user_command_9000 INPUT.
+
+  CASE ok_code.
+    WHEN 'BACK' OR 'ENCE' OR 'CANC'.
+      LEAVE TO SCREEN 0.
+    WHEN 'CAD_CLI'.
+      CALL TRANSACTION 'ZVT_T_CLIENTE'.
+    WHEN 'CAD_VEI'.
+      CALL TRANSACTION 'ZVT_T_VEICULO'.
+    WHEN 'CAD_LOC'.
+      CALL TRANSACTION 'ZVT_T_LOCACAO'.
+    WHEN 'DEV_LOC'.
+      CALL TRANSACTION 'ZVT_T_DEVLOC'.
+    WHEN 'ALV_CLI'.
+      CALL TRANSACTION 'ZVT_T_ALVCLI'.
+    WHEN 'ALV_VEI'.
+      CALL TRANSACTION 'ZVT_T_ALVVEIC'.
+    WHEN 'ALV_LOC'.
+      CALL TRANSACTION 'ZVT_T_ALVLOC'.
+    WHEN 'ALV_HLOC'.
+      CALL TRANSACTION 'ZVT_T_ALVHIST_LOC'.
+    WHEN 'ALV_PREC'.
+      CALL TRANSACTION 'ZVT_T_ALVPREC'.
+  endcase.
+
+      CLEAR ok_code.
+ENDMODULE.
