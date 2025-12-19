@@ -1,0 +1,223 @@
+class ZVTDCL_VEICULO definition
+  public
+  final
+  create public .
+
+public section.
+
+  data _PLACA type ZVTDE_PLACA .
+
+  methods CONSTRUCTOR
+    importing
+      !VEICULO_1 type ZVTDE_PLACA .
+  methods VEICULO_DISP
+    returning
+      value(VALID) type STRING .
+  methods CADASTRA_VEIC
+    importing
+      !I_TIPO_VEIC type ZVTDE_TIPO_VEIC
+      !I_MARCA type ZVTDE_MARCA optional
+      !I_ANO type ZVTDE_ANO optional
+      !I_MODELO type ZVTDE_MODELO optional
+    changing
+      !I_STATUS_VEIC type ZVTDE_STATUS_VEIC .
+  methods UPDATE_VEIC
+    importing
+      !I_MODELO type ZVTDE_MODELO optional
+      !I_TIPO_VEIC type ZVTDE_TIPO_VEIC optional
+      !I_ANO type ZVTDE_ANO optional
+      !I_MARCA type ZVTDE_MARCA optional
+      !I_STATUS_VEIC type ZVTDE_STATUS_VEIC optional .
+  methods DELETE_VEIC
+    importing
+      !I_PLACA type ref to ZVTDCL_VEICULO .
+  methods DISPLAY_VEIC .
+  methods GET_ID
+    returning
+      value(ID_VEIC) type ZVTDE_VEICULO .
+protected section.
+private section.
+ENDCLASS.
+
+
+
+CLASS ZVTDCL_VEICULO IMPLEMENTATION.
+
+
+  method CONSTRUCTOR.
+    me->_PLACA = VEICULO_1.
+  ENDMETHOD.
+
+
+  METHOD veiculo_disp.
+    " verifica se o veiculo esta com o status disponivel
+    data lt_veic type table of zvtdt_veiculo.
+
+    SELECT * FROM zvtdt_veiculo INTO TABLE @lt_veic WHERE placa = @me->_placa.
+
+    IF lt_veic IS INITIAL.
+      valid = 'I'.
+    ELSE.
+      LOOP AT lt_veic ASSIGNING FIELD-SYMBOL(<fs_veiculo>).
+        IF <fs_veiculo>-status_veiculo = 'D'.
+          valid = 'D'.
+        ELSE.
+          valid = 'A'.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD cadastra_veic.
+    DATA: ls_veic   TYPE zvtdt_veiculo,
+          lv_max_id TYPE zvtde_veiculo.
+
+    " Verifica se já existe veiculo com a mesma placa informada
+    SELECT SINGLE *
+      FROM zvtdt_veiculo
+      INTO @ls_veic
+      WHERE placa = @me->_placa.
+
+    IF sy-subrc = 0.
+      MESSAGE 'Veiculo já cadastrado para esta Placa.' TYPE 'E'.
+    ENDIF.
+
+    " Clear na estrutura da tabela
+    CLEAR ls_veic.
+    ls_veic-mandt = sy-mandt.
+
+    SELECT MAX( id_veiculo )
+      FROM zvtdt_veiculo
+      INTO @lv_max_id.
+
+    " Criando a numeração do id
+    IF lv_max_id IS INITIAL.
+      lv_max_id = '0001'.
+    ELSE.
+      lv_max_id = lv_max_id + 1.
+    ENDIF.
+
+    IF i_status_veic IS INITIAL.
+      i_status_veic = 'D'.
+    ENDIF.
+
+    " Declarando valores na tabela
+    ls_veic-id_veiculo     = lv_max_id.
+    ls_veic-tipo_veiculo   = i_tipo_veic.
+    ls_veic-modelo         = i_modelo.
+    ls_veic-marca          = i_marca.
+    ls_veic-ano             = i_ano.
+    ls_veic-placa           = me->_placa.
+    ls_veic-status_veiculo = i_status_veic.
+
+    INSERT zvtdt_veiculo FROM ls_veic.
+
+    IF sy-subrc = 0.
+      MESSAGE 'Veiculo incluído com sucesso.' TYPE 'S'.
+
+    ELSE.
+      MESSAGE 'Erro ao incluir veiculo.' TYPE 'E'.
+    ENDIF.
+  ENDMETHOD.
+
+
+  method DELETE_VEIC.
+    DATA lv_valid TYPE string.
+
+    " Usa a classe para ver situação do cliente
+    lv_valid = i_placa->veiculo_disp( ).
+
+    IF lv_valid = 'A'.
+      MESSAGE 'Veiculo alugado. Exclusão não permitida.' TYPE 'E'.
+    ELSEIF lv_valid = 'I'.
+      MESSAGE 'Veiculo não encontrado.' TYPE 'E'.
+    ENDIF.
+
+    DELETE FROM zvtdt_veiculo
+      WHERE placa = @me->_placa.
+
+    IF sy-subrc = 0.
+      MESSAGE 'Veiculo excluído com sucesso.' TYPE 'S'.
+    ELSE.
+      MESSAGE 'Veiculo não encontrado para exclusão.' TYPE 'E'.
+    ENDIF.
+  endmethod.
+
+
+  method UPDATE_VEIC.
+    DATA: ls_veic TYPE zvtdt_veiculo.
+
+    SELECT SINGLE *
+        FROM zvtdt_veiculo
+        INTO @ls_veic
+        WHERE placa = @me->_placa.
+
+    IF sy-subrc <> 0.
+      MESSAGE 'Veiculo não encontrado para alteração.' TYPE 'E'.
+    ENDIF.
+
+    " Atualiza somente campos preenchidos (se quiser essa regra)
+    IF i_modelo IS NOT INITIAL.
+      ls_veic-modelo = i_modelo.
+    ENDIF.
+
+    IF i_tipo_veic IS NOT INITIAL.
+      ls_veic-tipo_veiculo = i_tipo_veic.
+    ENDIF.
+
+    IF i_ano IS NOT INITIAL.
+      ls_veic-ano = i_ano.
+    ENDIF.
+
+    IF i_marca IS NOT INITIAL.
+      ls_veic-marca = i_marca.
+    ENDIF.
+
+    IF i_status_veic IS NOT INITIAL.
+      ls_veic-status_veiculo = i_status_veic.
+    ENDIF.
+
+    MODIFY zvtdt_veiculo FROM ls_veic.
+
+    IF sy-subrc = 0.
+      MESSAGE 'Veículo alterado com sucesso.' TYPE 'S'.
+    ELSE.
+      MESSAGE 'Erro ao alterar o veículo.' TYPE 'E'.
+    ENDIF.
+  endmethod.
+
+
+  method DISPLAY_VEIC.
+    DATA: ls_veic TYPE zvtdt_veiculo.
+
+    SELECT SINGLE *
+      FROM zvtdt_veiculo
+      INTO @ls_veic
+      WHERE placa = @me->_placa.
+
+    IF sy-subrc <> 0.
+      MESSAGE 'Veiculo não encontrado.' TYPE 'E'.
+    ENDIF.
+
+    " Exibição simples no output do report
+    WRITE: / 'Id do Veículo:   ',  ls_veic-id_veiculo,
+           / 'Modelo:  ',          ls_veic-modelo,
+           / 'Marca:   ',          ls_veic-marca,
+           / 'Ano:',               ls_veic-ano,
+           / 'Placa:',             ls_veic-placa,
+           / 'Tipo de Veículo:',   ls_veic-tipo_veiculo,
+           / 'Status do Veículo:', ls_veic-status_veiculo.
+  endmethod.
+
+
+  method GET_ID.
+    DATA lt_veic TYPE TABLE OF zvtdt_veiculo.
+
+    SELECT * FROM zvtdt_veiculo INTO TABLE @lt_veic WHERE placa = @me->_placa.
+
+    LOOP AT lt_veic ASSIGNING FIELD-SYMBOL(<fs_veiculo>).
+      id_veic = <fs_veiculo>-id_veiculo.
+    ENDLOOP.
+  endmethod.
+ENDCLASS.
