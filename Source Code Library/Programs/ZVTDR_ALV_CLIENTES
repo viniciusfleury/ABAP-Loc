@@ -1,0 +1,117 @@
+*&---------------------------------------------------------------------*
+*& Report ZVTDR_ALV_CLIENTES
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zvtdr_alv_clientes.
+
+CLASS lcl_main DEFINITION.
+
+  PUBLIC SECTION.
+    CLASS-METHODS main.
+
+    TYPES: BEGIN OF ty_cliente,
+             cpf            TYPE zvtde_cpf,
+             nome           TYPE zvtde_nome,
+             email          TYPE zvtde_email,
+             telefone       TYPE zvtde_telefone,
+             status_cliente TYPE ZVTDe_STATUS_CLI,
+             desc_cliente   TYPE ZVTDE_DESC_STATUS_CLI,
+           END OF ty_cliente.
+
+*Variaveis Globais
+    CLASS-DATA: gt_cliente        TYPE TABLE OF ty_cliente,
+                gv_cpf            TYPE zvtde_cpf,
+                gv_status_cliente TYPE zvtde_status_cli.
+
+  PRIVATE SECTION.
+
+*   Métodos e atributos para o processamento do programa
+    CLASS-METHODS: get_data, display_data.
+
+ENDCLASS.
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.
+
+  SELECT-OPTIONS: r_cpf FOR lcl_main=>gv_cpf,
+                  r_tcpt FOR lcl_main=>gv_status_cliente.
+
+SELECTION-SCREEN END OF BLOCK b1.
+
+CLASS lcl_main IMPLEMENTATION.
+
+  METHOD main.
+
+    get_data( ).
+    display_data( ).
+
+  ENDMETHOD.
+
+  METHOD get_data.
+
+    SELECT * FROM zvtdt_cliente
+      where cpf in @r_cpf and status_cliente in @r_tcpt
+      INTO CORRESPONDING FIELDS OF TABLE @gt_cliente.
+
+    SORT gt_cliente BY cpf.
+
+      IF sy-subrc EQ 0.
+
+        SELECT domvalue_l, ddlanguage, ddtext FROM dd07v
+        INTO TABLE @DATA(lt_DD07v_2)
+        WHERE domname EQ 'ZVTDD_STATUS_CLI'
+         AND ddlanguage EQ @sy-langu.
+
+        SORT lt_DD07v_2 BY domvalue_l.
+
+        IF sy-subrc EQ 0.
+
+          LOOP AT gt_cliente ASSIGNING FIELD-SYMBOL(<fs_cliente>).
+
+            READ TABLE lt_DD07v_2 INTO DATA(ls_DD07v_2) WITH KEY domvalue_l = <fs_cliente>-status_cliente.
+
+            IF sy-subrc EQ 0.
+
+              <fs_cliente>-desc_cliente = ls_DD07v_2-ddtext.
+
+            ENDIF.
+
+          ENDLOOP.
+
+        ENDIF.
+      ELSE.
+
+        MESSAGE TEXT-002 TYPE 'E'.
+        LEAVE LIST-PROCESSING.
+
+      ENDIF.
+  ENDMETHOD.
+
+  METHOD display_data.
+
+    TRY.
+
+        cl_salv_table=>factory(
+          IMPORTING
+            r_salv_table   = DATA(lo_salv_table)
+          CHANGING
+            t_table        = gt_cliente
+        ).
+      CATCH cx_salv_msg.
+
+    ENDTRY.
+
+    IF lo_salv_table IS BOUND.
+
+      lo_salv_table->get_functions( )->set_all( ).
+      lo_salv_table->get_columns( )->set_optimize( ).
+      lo_salv_table->display( ).
+
+    ENDIF.
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+START-OF-SELECTION.
+  lcl_main=>main( ).
