@@ -1,0 +1,39 @@
+@EndUserText.label : 'Tabela - Histórico de locações'
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
+@AbapCatalog.tableCategory : #TRANSPARENT
+@AbapCatalog.deliveryClass : #A
+@AbapCatalog.dataMaintenance : #ALLOWED
+define table zvtdt_loc_hist {
+
+  key mandt            : mandt not null;
+  key id_loc_historico : zvtde_loc_hist not null;
+  @AbapCatalog.foreignKey.keyType : #KEY
+  @AbapCatalog.foreignKey.screenCheck : true
+  key id_locacao       : zvtde_locacao not null
+    with foreign key [1,1] zvtdt_locacao
+      where mandt = zvtdt_loc_hist.mandt
+        and id_locacao = zvtdt_loc_hist.id_locacao
+        and id_cliente = zvtdt_loc_hist.id_cliente
+        and id_veiculo = zvtdt_loc_hist.id_veiculo;
+  @AbapCatalog.foreignKey.keyType : #KEY
+  @AbapCatalog.foreignKey.screenCheck : true
+  key id_cliente       : zvtde_cliente not null
+    with foreign key [0..*,1] zvtdt_cliente
+      where mandt = zvtdt_loc_hist.mandt
+        and id_cliente = zvtdt_loc_hist.id_cliente;
+  @AbapCatalog.foreignKey.keyType : #KEY
+  @AbapCatalog.foreignKey.screenCheck : true
+  key id_veiculo       : zvtde_veiculo not null
+    with foreign key [0..*,1] zvtdt_veiculo
+      where mandt = zvtdt_loc_hist.mandt
+        and id_veiculo = zvtdt_loc_hist.id_veiculo;
+  data_retirada        : zvtde_data_retirada;
+  data_prev_devolucao  : zvtde_prev_devol;
+  data_devolucao       : zvtde_data_devol;
+  @Semantics.amount.currencyCode : 'zvtdt_loc_hist.moeda'
+  valor_total          : zvtde_valor_total;
+  moeda                : zvtde_moeda;
+  @Semantics.amount.currencyCode : 'zvtdt_loc_hist.moeda'
+  valor_multa          : zvtde_valor_multa;
+
+}
