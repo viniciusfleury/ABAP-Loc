@@ -1,0 +1,47 @@
+CLASS zvt_carga_preco DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC.
+
+  PUBLIC SECTION.
+    INTERFACES if_oo_adt_classrun.
+  PRIVATE SECTION.
+ENDCLASS.
+
+CLASS zvt_carga_preco IMPLEMENTATION.
+
+  METHOD if_oo_adt_classrun~main.
+
+    DATA lt_carga TYPE TABLE OF zvtdt_preco.
+    DATA lt_fail  TYPE TABLE OF zvtdt_preco.
+
+    "Exemplo de carga (IDs fixos para carga inicial)
+    lt_carga = VALUE #(
+      ( mandt = sy-mandt id_preco = '000002' tipo_veiculo = 'CA' preco = '15.00' moeda = 'BRL' multa = '5.00' )
+      ( mandt = sy-mandt id_preco = '000003' tipo_veiculo = 'MT' preco = '5.00' moeda = 'BRL' multa = '5.00' )
+      ( mandt = sy-mandt id_preco = '000004' tipo_veiculo = 'ON' preco = '20.00' moeda = 'BRL' multa = '5.00' )
+    ).
+
+    "Inserção linha a linha para identificar falhas (duplicidade de chave, etc.)
+    LOOP AT lt_carga ASSIGNING FIELD-SYMBOL(<ls_preco>).
+      INSERT zvtdt_preco FROM @<ls_preco>.
+      IF sy-subrc <> 0.
+        APPEND <ls_preco> TO lt_fail.
+      ENDIF.
+    ENDLOOP.
+
+    IF lt_fail IS INITIAL.
+      COMMIT WORK AND WAIT.
+      out->write( |Preços registrados com sucesso: { lines( lt_carga ) }| ).
+    ELSE.
+      ROLLBACK WORK.
+      out->write( |Falharam { lines( lt_fail ) } de { lines( lt_carga ) }. Exibindo chaves:| ).
+
+      LOOP AT lt_fail ASSIGNING FIELD-SYMBOL(<ls_fail>).
+        out->write( | - ID { <ls_fail>-id_preco } / Tipo { <ls_fail>-tipo_veiculo }| ).
+      ENDLOOP.
+    ENDIF.
+
+  ENDMETHOD.
+
+ENDCLASS.
