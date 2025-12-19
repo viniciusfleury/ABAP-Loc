@@ -1,0 +1,133 @@
+*&---------------------------------------------------------------------*
+*& Report ZVTDR_ALV_CLIENTES
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zvtdr_alv_veiculos.
+
+CLASS lcl_main DEFINITION.
+
+  PUBLIC SECTION.
+    CLASS-METHODS main.
+
+    TYPES: BEGIN OF ty_veiculo,
+             tipo_veiculo      TYPE zvtde_tipo_veic,
+             desc_tipo_veiculo TYPE ZVTDE_DESC_TIPO_VEIC,
+             modelo            TYPE zvtde_modelo,
+             marca             TYPE zvtde_marca,
+             ano               TYPE zvtde_ano,
+             placa             TYPE zvtde_placa,
+             status_veiculo    TYPE zvtde_status_veic,
+             desc_veiculo      TYPE zvtde_desc_status_veic,
+           END OF ty_veiculo.
+
+*Variaveis Globais
+    CLASS-DATA: gt_veiculo        TYPE TABLE OF ty_veiculo,
+                gv_placa          TYPE zvtde_placa,
+                gv_status_veiculo TYPE zvtde_status_veic.
+
+
+  PRIVATE SECTION.
+
+*   Métodos e atributos para o processamento do programa
+    CLASS-METHODS: get_data, display_data.
+
+ENDCLASS.
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.
+
+  SELECT-OPTIONS: r_placa FOR lcl_main=>gv_placa ,
+                  r_stveic FOR lcl_main=>gv_status_veiculo.
+
+SELECTION-SCREEN END OF BLOCK b1.
+
+CLASS lcl_main IMPLEMENTATION.
+
+  METHOD main.
+
+    get_data( ).
+    display_data( ).
+
+  ENDMETHOD.
+
+  METHOD get_data.
+
+    SELECT * FROM zvtdt_veiculo
+      WHERE placa IN @r_placa AND status_veiculo IN @r_stveic
+      INTO CORRESPONDING FIELDS OF TABLE @gt_veiculo.
+
+    SORT gt_veiculo  BY placa.
+
+    IF sy-subrc EQ 0.
+
+      SELECT domvalue_l, ddlanguage, ddtext FROM dd07v
+      INTO TABLE @DATA(lt_DD07v_2)
+      WHERE domname EQ 'ZVTDD_STATUS_VEIC'
+       AND ddlanguage EQ @sy-langu.
+
+      SORT lt_DD07v_2 BY domvalue_l.
+
+      SELECT domvalue_l, ddlanguage, ddtext FROM dd07v
+      INTO TABLE @DATA(lt_dd07v_tipo)
+      WHERE domname    EQ 'ZVTDD_TIPO_VEIC'
+      AND ddlanguage EQ @sy-langu.
+
+      SORT lt_dd07v_tipo BY domvalue_l.
+
+      IF sy-subrc EQ 0.
+
+        LOOP AT gt_veiculo ASSIGNING FIELD-SYMBOL(<fs_veiculo>).
+
+          READ TABLE lt_DD07v_2 INTO DATA(ls_DD07v_2) WITH KEY domvalue_l = <fs_veiculo>-status_veiculo.
+
+          IF sy-subrc EQ 0.
+
+            <fs_veiculo>-desc_veiculo = ls_DD07v_2-ddtext.
+
+          ENDIF.
+
+          READ TABLE lt_dd07v_tipo INTO DATA(ls_dd07v_tipo) WITH KEY domvalue_l = <fs_veiculo>-tipo_veiculo.
+
+          IF sy-subrc EQ 0.
+            <fs_veiculo>-desc_tipo_veiculo = ls_dd07v_tipo-ddtext.
+          ENDIF.
+
+        ENDLOOP.
+
+      ENDIF.
+    ELSE.
+
+      MESSAGE TEXT-002 TYPE 'E'.
+      LEAVE LIST-PROCESSING.
+
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD display_data.
+
+    TRY.
+
+        cl_salv_table=>factory(
+          IMPORTING
+            r_salv_table   = DATA(lo_salv_table)
+          CHANGING
+            t_table        = gt_veiculo
+        ).
+      CATCH cx_salv_msg.
+
+    ENDTRY.
+
+    IF lo_salv_table IS BOUND.
+
+      lo_salv_table->get_functions( )->set_all( ).
+      lo_salv_table->get_columns( )->set_optimize( ).
+      lo_salv_table->display( ).
+
+    ENDIF.
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+START-OF-SELECTION.
+  lcl_main=>main( ).
