@@ -1,0 +1,79 @@
+CLASS zvtdcl_srv_financeiro DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC .
+
+  PUBLIC SECTION.
+
+    DATA _tipo TYPE zvtde_tipo_veic .
+
+    METHODS constructor
+      IMPORTING
+        !tipo_veiculo TYPE zvtde_tipo_veic.
+
+    METHODS preco_total
+      IMPORTING
+        !tipo_veiculo        TYPE zvtde_tipo_veic
+        !data_retirada       TYPE zvtde_data_retirada
+        !data_prev_devolucao TYPE zvtde_prev_devol
+        !data_devolucao      TYPE zvtde_data_devol
+        !placa               TYPE zvtde_placa
+      EXPORTING
+        !valor_total         TYPE zvtde_valor_total
+        !valor_multa         TYPE zvtde_valor_multa
+        !moeda               TYPE zvtde_moeda.
+
+ENDCLASS.
+
+
+
+CLASS zvtdcl_srv_financeiro IMPLEMENTATION.
+
+  METHOD constructor.
+    me->_tipo = tipo_veiculo.
+  ENDMETHOD.
+
+
+  METHOD preco_total.
+
+    DATA: ls_preco      TYPE zvtdt_preco,
+          lv_dias       TYPE i,
+          lv_dias_multa TYPE i.
+
+    "Defaults (evita lixo caso algo falhe antes)
+    CLEAR: valor_total, valor_multa.
+    moeda = 'BRL'. "TODO: ajustar se sua tabela de preço tiver moeda
+
+    "Dias de uso (se devolveu no mesmo dia, pode dar 0)
+    lv_dias = data_devolucao - data_retirada.
+    IF lv_dias < 0.
+      lv_dias = 0.
+    ENDIF.
+
+    "Dias de atraso (multa)
+    lv_dias_multa = data_devolucao - data_prev_devolucao.
+    IF lv_dias_multa < 0.
+      lv_dias_multa = 0.
+    ENDIF.
+
+    "Busca preço/multa por tipo de veículo
+    SELECT SINGLE *
+      FROM zvtdt_preco
+      INTO @ls_preco
+      WHERE tipo_veiculo = @tipo_veiculo.
+
+    IF sy-subrc <> 0.
+      "Sem preço cadastrado = não dá pra calcular corretamente
+      MESSAGE 'Preço não cadastrado para o tipo de veículo.' TYPE 'E'.
+    ENDIF.
+
+    "Se existir campo de moeda em zvtdt_preco, prefira usar:
+    "moeda = ls_preco-moeda.
+
+    "Cálculo
+    valor_multa = lv_dias_multa * ls_preco-multa.
+    valor_total = ( lv_dias * ls_preco-preco ) + valor_multa.
+
+  ENDMETHOD.
+
+ENDCLASS.
