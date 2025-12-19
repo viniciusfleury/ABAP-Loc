@@ -1,0 +1,154 @@
+*&---------------------------------------------------------------------*
+*& Report ZVTD_CAD_LOCACAO
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zvtd_cad_locacao.
+
+CLASS lcl_main DEFINITION.
+
+  PUBLIC SECTION.
+    CLASS-METHODS main.
+
+*Variaveis Globais
+    CLASS-DATA: vg_veiculo    TYPE REF TO zvtdcl_veiculo,
+                vg_cliente    TYPE REF TO zvtdcl_cliente,
+                vg_locacao    TYPE REF TO zvtdcl_locacao,
+                vg_lv_cliente TYPE string,
+                vg_lv_veiculo TYPE string.
+
+  PRIVATE SECTION.
+
+*   Métodos e atributos para o processamento do programa
+    CLASS-METHODS: instance_locacao, create_locacao, display_locacao.
+
+ENDCLASS.
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.
+
+  PARAMETERS: v_cpf    TYPE zvtde_cpf OBLIGATORY,
+              v_placa  TYPE zvtde_placa OBLIGATORY,
+              v_dt_ret TYPE zvtde_data_retirada,
+              v_p_dev  TYPE zvtde_prev_devol.
+
+SELECTION-SCREEN END OF BLOCK b1.
+
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE TEXT-002.
+
+  PARAMETERS: p_incl RADIOBUTTON GROUP act DEFAULT 'X',
+*              p_exc  RADIOBUTTON GROUP act,
+              p_disp RADIOBUTTON GROUP act.
+
+SELECTION-SCREEN END OF BLOCK b2.
+
+CLASS lcl_main IMPLEMENTATION.
+
+  METHOD main.
+
+    lcl_main=>instance_locacao( ).
+
+    IF p_incl = abap_true.
+      create_locacao( ).
+*    ELSEIF p_exc = abap_true.
+*      delete_locacao( ).
+    ELSEIF p_disp = abap_true.
+      display_locacao( ).
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD instance_locacao.
+
+    CREATE OBJECT vg_veiculo
+      EXPORTING
+        veiculo_1 = v_placa.
+
+    CREATE OBJECT vg_cliente
+      EXPORTING
+        cliente_1 = v_cpf.
+
+    CREATE OBJECT vg_locacao
+      EXPORTING
+        cliente = vg_cliente
+        veiculo = vg_veiculo.
+
+  ENDMETHOD.
+
+  METHOD create_locacao.
+
+    DATA: v_id_c TYPE zvtde_cliente,
+          v_id_v TYPE zvtde_veiculo.
+
+    vg_lv_cliente = vg_cliente->cliente_disp( ).
+    IF vg_lv_cliente = 'I'.
+      MESSAGE 'Cliente não valido.' TYPE 'E'.
+    ENDIF.
+
+    vg_lv_veiculo = vg_veiculo->veiculo_disp( ).
+    IF vg_lv_veiculo = 'I' OR vg_lv_veiculo = 'A'.
+      MESSAGE 'Veículo não valido' TYPE 'E'.
+    ENDIF.
+
+    v_id_c = vg_cliente->get_id( ).
+    v_id_v = vg_veiculo->get_id( ).
+
+    vg_locacao->registrar(
+      id_cliente     = v_id_c
+      id_veiculo     = v_id_v
+      data_retirada  = v_dt_ret
+      prev_devolucao = v_p_dev
+      status_locacao = 'A'
+    ).
+
+  ENDMETHOD.
+
+*  METHOD update_veiculo.
+*
+*    vg_veiculo->update_veic(
+*    EXPORTING
+*      i_modelo      = v_modelo
+*      i_tipo_veic   = v_tip_ve
+*      i_ano         = v_ano
+*      i_marca       = v_marca
+*      i_status_veic = v_sta_ve
+*    ).
+*
+*  ENDMETHOD.
+*
+*  METHOD delete_veiculo.
+*
+*    vg_veiculo->delete_veic(
+*      i_placa = vg_veiculo
+*    ).
+*  ENDMETHOD.
+*
+  METHOD display_locacao.
+
+*    vg_veiculo->display_veic( ).
+
+    DATA: ls_loc TYPE zvtdt_locacao.
+
+    SELECT SINGLE a~*
+      FROM zvtdt_locacao AS a
+       INNER JOIN zvtdt_cliente  AS b ON a~id_cliente  = b~id_cliente
+       INNER JOIN zvtdt_veiculo  AS c ON a~id_veiculo = c~id_veiculo
+       WHERE b~cpf   = @v_cpf
+         AND c~placa = @v_placa
+       INTO @ls_loc.
+
+    IF sy-subrc <> 0.
+      MESSAGE 'Locação não encontrada.' TYPE 'E'.
+    ENDIF.
+
+    " Exibição simples no output do report
+    WRITE: / 'Id da locação:   ',  ls_loc-id_locacao,
+           / 'CPF do cliente:  ',          v_cpf,
+           / 'Placa do veículo:   ',          v_placa,
+           / 'Data da retirada:',               ls_loc-data_retirada,
+           / 'Data da previsão de devolução:',             ls_loc-data_prev_devolucao.
+  ENDMETHOD.
+
+ENDCLASS.
+
+START-OF-SELECTION.
+  lcl_main=>main( ).
