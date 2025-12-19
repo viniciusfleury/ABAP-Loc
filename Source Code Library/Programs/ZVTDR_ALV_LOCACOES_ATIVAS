@@ -1,0 +1,130 @@
+*&---------------------------------------------------------------------*
+*& Report ZVTDR_ALV_LOCACOES_ATIVAS
+*&---------------------------------------------------------------------*
+REPORT zvtdr_alv_locacoes_ativas.
+
+CLASS lcl_main DEFINITION.
+
+  PUBLIC SECTION.
+    CLASS-METHODS main.
+
+    TYPES: BEGIN OF ty_locacao,
+             id_locacao          TYPE zvtde_locacao,
+             status_locacao      TYPE zvtde_status_loc,
+             desc_status         TYPE zvtde_desc_status_loc,
+             id_cliente          TYPE zvtde_cliente,
+             nome_cliente        TYPE zvtde_nome,
+             id_veiculo          TYPE zvtde_veiculo,
+             modelo              TYPE zvtde_modelo,
+             marca               TYPE zvtde_marca,
+             placa               TYPE zvtde_placa,
+             data_retirada       TYPE zvtde_data_retirada,
+             data_prev_devolucao TYPE zvtde_prev_devol,
+             data_devolucao      TYPE zvtde_data_devol,
+           END OF ty_locacao.
+
+    CLASS-DATA: gt_locacao TYPE TABLE OF ty_locacao,
+                gv_id_cli  TYPE zvtde_cliente,
+                gv_id_vei  TYPE zvtde_veiculo,
+                gv_dt_ret  TYPE zvtde_data_retirada.
+
+  PRIVATE SECTION.
+    CLASS-METHODS: get_data, enrich_texts, display_data.
+
+ENDCLASS.
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.
+
+  SELECT-OPTIONS: r_cli FOR lcl_main=>gv_id_cli,
+                  r_vei FOR lcl_main=>gv_id_vei,
+                  r_ret FOR lcl_main=>gv_dt_ret.
+
+SELECTION-SCREEN END OF BLOCK b1.
+
+CLASS lcl_main IMPLEMENTATION.
+
+  METHOD main.
+    get_data( ).
+    enrich_texts( ).
+    display_data( ).
+  ENDMETHOD.
+
+  METHOD get_data.
+
+    " STATUS fixo = 'A' conforme sua regra
+    SELECT
+  l~id_locacao,
+  l~id_cliente,
+  l~id_veiculo,
+  l~data_retirada,
+  l~data_prev_devolucao,
+  l~data_devolucao,
+  l~status_locacao,
+
+  c~nome  AS nome_cliente,
+  v~placa AS placa,
+  v~modelo,
+  v~marca
+  FROM zvtdt_locacao AS l
+  LEFT JOIN zvtdt_cliente AS c
+    ON c~id_cliente = l~id_cliente
+  LEFT JOIN zvtdt_veiculo AS v
+    ON v~id_veiculo = l~id_veiculo
+  WHERE l~status_locacao = 'A'
+    AND l~id_cliente     IN @r_cli
+    AND l~id_veiculo     IN @r_vei
+    AND l~data_retirada  IN @r_ret
+  INTO CORRESPONDING FIELDS OF TABLE @gt_locacao.
+
+    SORT gt_locacao BY data_retirada id_locacao.
+
+    IF gt_locacao IS INITIAL.
+      MESSAGE TEXT-002 TYPE 'E'.
+      LEAVE LIST-PROCESSING.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD enrich_texts.
+
+    SELECT domvalue_l, ddlanguage, ddtext
+      FROM dd07v
+      INTO TABLE @DATA(lt_status)
+      WHERE domname    = 'ZVTDD_STATUS_LOC'   " <-- AJUSTE se necessário
+        AND ddlanguage = @sy-langu.
+
+    SORT lt_status BY domvalue_l.
+
+    LOOP AT gt_locacao ASSIGNING FIELD-SYMBOL(<fs_loc>).
+      READ TABLE lt_status INTO DATA(ls_status)
+        WITH KEY domvalue_l = <fs_loc>-status_locacao.
+      IF sy-subrc = 0.
+        <fs_loc>-desc_status = ls_status-ddtext.
+      ENDIF.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+  METHOD display_data.
+
+    TRY.
+        cl_salv_table=>factory(
+          IMPORTING
+            r_salv_table = DATA(lo_salv)
+          CHANGING
+            t_table      = gt_locacao
+        ).
+      CATCH cx_salv_msg.
+        RETURN.
+    ENDTRY.
+
+    lo_salv->get_functions( )->set_all( ).
+    lo_salv->get_columns( )->set_optimize( ).
+    lo_salv->display( ).
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+START-OF-SELECTION.
+  lcl_main=>main( ).
