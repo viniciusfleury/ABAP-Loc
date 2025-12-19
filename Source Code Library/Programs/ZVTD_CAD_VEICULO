@@ -1,0 +1,131 @@
+*&---------------------------------------------------------------------*
+*& Report ZVTD_CAD_VEICULO
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zvtd_cad_veiculo.
+
+CLASS lcl_main DEFINITION.
+
+  PUBLIC SECTION.
+    CLASS-METHODS main.
+
+*Variaveis Globais
+    CLASS-DATA: vg_veiculo TYPE REF TO zvtdcl_veiculo.
+
+  PRIVATE SECTION.
+
+*   Métodos e atributos para o processamento do programa
+    CLASS-METHODS: instance_veiculo, create_veiculo, update_veiculo, delete_veiculo, display_veiculo.
+
+ENDCLASS.
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.
+
+  PARAMETERS: v_tip_ve TYPE zvtde_tipo_veic,
+              v_modelo TYPE zvtde_modelo,
+              v_marca  TYPE zvtde_marca,
+              v_ano    TYPE zvtde_ano,
+              v_placa  TYPE zvtde_placa OBLIGATORY,
+              v_sta_ve TYPE zvtde_status_veic.
+
+SELECTION-SCREEN END OF BLOCK b1.
+
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE TEXT-002.
+
+  PARAMETERS: p_incl RADIOBUTTON GROUP act DEFAULT 'X',
+              p_alt  RADIOBUTTON GROUP act,
+              p_exc  RADIOBUTTON GROUP act,
+              p_disp RADIOBUTTON GROUP act.
+
+SELECTION-SCREEN END OF BLOCK b2.
+
+CLASS lcl_main IMPLEMENTATION.
+
+  METHOD main.
+
+    lcl_main=>instance_veiculo( ).
+
+    IF p_incl = abap_true.
+      create_veiculo( ).
+    ELSEIF p_alt = abap_true.
+      update_veiculo( ).
+    ELSEIF p_exc = abap_true.
+      delete_veiculo( ).
+    ELSEIF p_disp = abap_true.
+      display_veiculo( ).
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD instance_veiculo.
+
+    CREATE OBJECT vg_veiculo
+      EXPORTING
+        veiculo_1 = v_placa.
+
+  ENDMETHOD.
+
+  METHOD create_veiculo.
+
+    vg_veiculo->cadastra_veic(
+      EXPORTING
+        i_tipo_veic   = v_tip_ve
+      i_marca       = v_marca
+      i_ano         = v_ano
+      i_modelo      = v_modelo
+      CHANGING
+        i_status_veic = v_sta_ve
+    ).
+
+  ENDMETHOD.
+
+  METHOD update_veiculo.
+
+    vg_veiculo->update_veic(
+    EXPORTING
+      i_modelo      = v_modelo
+      i_tipo_veic   = v_tip_ve
+      i_ano         = v_ano
+      i_marca       = v_marca
+      i_status_veic = v_sta_ve
+    ).
+
+  ENDMETHOD.
+
+  METHOD delete_veiculo.
+
+    vg_veiculo->delete_veic(
+      i_placa = vg_veiculo
+    ).
+  ENDMETHOD.
+
+  METHOD display_veiculo.
+
+    vg_veiculo->display_veic( ).
+
+*    DATA: ls_veic TYPE zvtdt_veiculo.
+*
+*    SELECT SINGLE *
+*      FROM zvtdt_veiculo
+*      INTO @ls_veic
+*      WHERE placa = @v_placa.
+*
+*    IF sy-subrc <> 0.
+*      MESSAGE 'Cliente não encontrado.' TYPE 'E'.
+*    ENDIF.
+*
+*    " Exibição simples no output do report
+*    WRITE: / 'Id do Veículo:   ',  ls_veic-id_veiculo,
+*           / 'Modelo:  ',          ls_veic-modelo,
+*           / 'Marca:   ',          ls_veic-marca,
+*           / 'Ano:',               ls_veic-ano,
+*           / 'Placa:',             ls_veic-placa,
+*           / 'Tipo de Veículo:',   ls_veic-tipo_veiculo,
+*           / 'Status do Veículo:', ls_veic-status_veiculo.
+  ENDMETHOD.
+
+ENDCLASS.
+
+START-OF-SELECTION.
+  lcl_main=>main( ).
