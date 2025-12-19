@@ -1,0 +1,114 @@
+*&---------------------------------------------------------------------*
+*& Report ZVTDR_ALV_PRECOS
+*&---------------------------------------------------------------------*
+REPORT zvtdr_alv_precos.
+
+CLASS lcl_main DEFINITION.
+
+  PUBLIC SECTION.
+    CLASS-METHODS main.
+
+    TYPES: BEGIN OF ty_preco,
+             id_preco     TYPE zvtde_id_preco,
+             tipo_veiculo TYPE zvtde_tipo_veic,
+             desc_veiculo TYPE zvtde_desc_tipo_veic,
+             preco        TYPE zvtde_preco,
+             moeda        TYPE zvtde_moeda,
+             multa        TYPE zvtde_multa,
+           END OF ty_preco.
+
+    CLASS-DATA: gt_preco TYPE TABLE OF ty_preco,
+                gv_tipo  TYPE zvtde_tipo_veic.
+
+  PRIVATE SECTION.
+    CLASS-METHODS: get_data, display_data.
+
+ENDCLASS.
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.
+
+  SELECT-OPTIONS: r_tipo FOR lcl_main=>gv_tipo. "<<< NÃO é obrigatório
+
+SELECTION-SCREEN END OF BLOCK b1.
+
+CLASS lcl_main IMPLEMENTATION.
+
+  METHOD main.
+    get_data( ).
+    display_data( ).
+  ENDMETHOD.
+
+  METHOD get_data.
+
+    SELECT *
+      FROM zvtdt_preco
+      WHERE tipo_veiculo IN @r_tipo
+      INTO CORRESPONDING FIELDS OF TABLE @gt_preco.
+
+    SORT gt_preco BY tipo_veiculo id_preco.
+
+    IF sy-subrc EQ 0.
+
+      SELECT domvalue_l, ddlanguage, ddtext FROM dd07v
+      INTO TABLE @DATA(lt_dd07v_tipo)
+      WHERE domname    EQ 'ZVTDD_TIPO_VEIC'
+      AND ddlanguage EQ @sy-langu.
+
+      SORT lt_dd07v_tipo BY domvalue_l.
+
+      IF sy-subrc EQ 0.
+
+        LOOP AT gt_preco ASSIGNING FIELD-SYMBOL(<fs_preco>).
+
+          READ TABLE lt_dd07v_tipo INTO DATA(ls_dd07v_tipo) WITH KEY domvalue_l = <fs_preco>-tipo_veiculo.
+
+          IF sy-subrc EQ 0.
+            <fs_preco>-desc_veiculo = ls_dd07v_tipo-ddtext.
+          ENDIF.
+
+        ENDLOOP.
+
+      ENDIF.
+    ELSE.
+
+      MESSAGE TEXT-002 TYPE 'E'.
+      LEAVE LIST-PROCESSING.
+
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD display_data.
+
+    TRY.
+        cl_salv_table=>factory(
+          IMPORTING
+            r_salv_table = DATA(lo_salv)
+          CHANGING
+            t_table      = gt_preco
+        ).
+      CATCH cx_salv_msg.
+        RETURN.
+    ENDTRY.
+
+    lo_salv->get_functions( )->set_all( ).
+    lo_salv->get_columns( )->set_optimize( ).
+
+    TRY.
+        DATA(lo_cols) = lo_salv->get_columns( ).
+        lo_cols->get_column( 'ID_PRECO' )->set_long_text( 'ID Preço' ).
+        lo_cols->get_column( 'TIPO_VEICULO' )->set_long_text( 'Tipo de veículo' ).
+        lo_cols->get_column( 'PRECO' )->set_long_text( 'Preço diária' ).
+        lo_cols->get_column( 'MULTA' )->set_long_text( 'Multa diária' ).
+        lo_cols->get_column( 'MOEDA' )->set_long_text( 'Moeda' ).
+      CATCH cx_salv_not_found.
+    ENDTRY.
+
+    lo_salv->display( ).
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+START-OF-SELECTION.
+  lcl_main=>main( ).
