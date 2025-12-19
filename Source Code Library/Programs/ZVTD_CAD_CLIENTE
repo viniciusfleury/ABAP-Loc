@@ -1,0 +1,209 @@
+*&---------------------------------------------------------------------*
+*& Report ZVTD_CAD_CLIENTE
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zvtd_cad_cliente.
+
+CLASS lcl_main DEFINITION.
+
+  PUBLIC SECTION.
+    CLASS-METHODS main.
+
+*Variaveis Globais
+    CLASS-DATA: vg_cliente TYPE REF TO zvtdcl_cliente.
+
+  PRIVATE SECTION.
+
+*   Métodos e atributos para o processamento do programa
+    CLASS-METHODS: instance_cliente, create_cliente, update_cliente, delete_cliente, display_cliente.
+
+ENDCLASS.
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.
+
+  PARAMETERS: v_cpf    TYPE zvtde_cpf OBLIGATORY,
+              v_nome   TYPE zvtde_nome,
+              v_tel    TYPE zvtde_telefone,
+              v_email  TYPE zvtde_email,
+              v_status TYPE zvtde_status_cli.
+
+SELECTION-SCREEN END OF BLOCK b1.
+
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE TEXT-002.
+
+  PARAMETERS: p_incl RADIOBUTTON GROUP act DEFAULT 'X',
+              p_alt  RADIOBUTTON GROUP act,
+              p_exc  RADIOBUTTON GROUP act,
+              p_disp RADIOBUTTON GROUP act.
+
+SELECTION-SCREEN END OF BLOCK b2.
+
+CLASS lcl_main IMPLEMENTATION.
+
+  METHOD main.
+
+    lcl_main=>instance_cliente( ).
+
+    IF p_incl = abap_true.
+      create_cliente( ).
+    ELSEIF p_alt = abap_true.
+      update_cliente( ).
+    ELSEIF p_exc = abap_true.
+      delete_cliente( ).
+    ELSEIF p_disp = abap_true.
+      display_cliente( ).
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD instance_cliente.
+
+    CREATE OBJECT vg_cliente
+      EXPORTING
+        cliente_1 = v_cpf.  " Estrutura - CPF
+
+  ENDMETHOD.
+
+  METHOD create_cliente.
+
+    DATA: ls_cli    TYPE zvtdt_cliente,
+          lv_max_id TYPE zvtde_cliente,
+          status    TYPE zvtde_status_cli.
+
+    " Verifica se já existe cliente com o CPF informado
+    SELECT SINGLE *
+      FROM zvtdt_cliente
+      INTO @ls_cli
+      WHERE cpf = @v_cpf.
+
+    IF sy-subrc = 0.
+      MESSAGE 'Cliente já cadastrado para este CPF.' TYPE 'E'.
+    ENDIF.
+
+    " Clear na estrutura da tabela
+    CLEAR ls_cli.
+    ls_cli-mandt = sy-mandt.
+
+    SELECT MAX( id_cliente )
+      FROM zvtdt_cliente
+      INTO @lv_max_id.
+
+    " Criando a numeração do id
+    IF lv_max_id IS INITIAL.
+      lv_max_id = '0001'.
+    ELSE.
+      lv_max_id = lv_max_id + 1.
+    ENDIF.
+
+    IF v_status IS INITIAL.
+      status = 'A'.
+    ELSE.
+      status = v_status.
+    ENDIF.
+
+    " Declarando valores na tabela
+    ls_cli-id_cliente     = lv_max_id.
+    ls_cli-cpf            = v_cpf.
+    ls_cli-nome           = v_nome.
+    ls_cli-telefone       = v_tel.
+    ls_cli-email          = v_email.
+    ls_cli-status_cliente = status.
+
+    INSERT zvtdt_cliente FROM ls_cli.
+
+    IF sy-subrc = 0.
+      MESSAGE 'Cliente incluído com sucesso.' TYPE 'S'.
+
+    ELSE.
+      MESSAGE 'Erro ao incluir cliente.' TYPE 'E'.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD update_cliente.
+
+    DATA: ls_cli TYPE zvtdt_cliente.
+
+    SELECT SINGLE *
+        FROM zvtdt_cliente
+        INTO @ls_cli
+        WHERE cpf = @v_cpf.
+
+    IF sy-subrc <> 0.
+      MESSAGE 'Cliente não encontrado para alteração.' TYPE 'E'.
+    ENDIF.
+
+    " Atualiza somente campos preenchidos (se quiser essa regra)
+    IF v_nome IS NOT INITIAL.
+      ls_cli-nome = v_nome.
+    ENDIF.
+
+    IF v_tel IS NOT INITIAL.
+      ls_cli-telefone = v_tel.
+    ENDIF.
+
+    IF v_email IS NOT INITIAL.
+      ls_cli-email = v_email.
+    ENDIF.
+
+    IF v_status IS NOT INITIAL.
+      ls_cli-status_cliente = v_status.
+    ENDIF.
+
+    MODIFY zvtdt_cliente FROM ls_cli.
+
+    IF sy-subrc = 0.
+      MESSAGE 'Cliente alterado com sucesso.' TYPE 'S'.
+    ELSE.
+      MESSAGE 'Erro ao alterar cliente.' TYPE 'E'.
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD delete_cliente.
+
+    DATA lv_valid TYPE string.
+
+    " Usa a classe para ver situação do cliente
+    lv_valid = vg_cliente->cliente_disp( ).
+
+    IF lv_valid = 'A'.
+      MESSAGE 'Cliente ativo. Exclusão não permitida.' TYPE 'E'.
+    ENDIF.
+
+    DELETE FROM zvtdt_cliente
+      WHERE cpf = @v_cpf.
+
+    IF sy-subrc = 0.
+      MESSAGE 'Cliente excluído com sucesso.' TYPE 'S'.
+    ELSE.
+      MESSAGE 'Cliente não encontrado para exclusão.' TYPE 'E'.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD display_cliente.
+
+    DATA: ls_cli TYPE zvtdt_cliente.
+
+    SELECT SINGLE *
+      FROM zvtdt_cliente
+      INTO @ls_cli
+      WHERE cpf = @v_cpf.
+
+    IF sy-subrc <> 0.
+      MESSAGE 'Cliente não encontrado.' TYPE 'E'.
+    ENDIF.
+
+    " Exibição simples no output do report
+    WRITE: / 'CPF:   ', ls_cli-cpf,
+           / 'Nome:  ', ls_cli-nome,
+           / 'Tel:   ', ls_cli-telefone,
+           / 'E-mail:', ls_cli-email,
+           / 'Status:', ls_cli-status_cliente.
+  ENDMETHOD.
+
+ENDCLASS.
+
+START-OF-SELECTION.
+  lcl_main=>main( ).
