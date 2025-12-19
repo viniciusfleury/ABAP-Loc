@@ -1,0 +1,235 @@
+CLASS zvtdcl_locacao DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC .
+
+  PUBLIC SECTION.
+
+    DATA _cliente TYPE REF TO zvtdcl_cliente .
+    DATA _veiculo TYPE REF TO zvtdcl_veiculo .
+
+    METHODS constructor
+      IMPORTING
+        !cliente TYPE REF TO zvtdcl_cliente
+        !veiculo TYPE REF TO zvtdcl_veiculo .
+
+    METHODS registrar
+      IMPORTING
+        !id_cliente     TYPE zvtde_cliente
+        !id_veiculo     TYPE zvtde_veiculo
+        !data_retirada  TYPE zvtde_data_retirada
+        !prev_devolucao TYPE zvtde_prev_devol
+        !status_locacao TYPE zvtde_status_loc .
+
+    METHODS registrar_dev
+      IMPORTING
+        !data_devolucao TYPE zvtde_data_devol
+        !status_locacao TYPE zvtde_status_loc
+        !id_locacao     TYPE zvtde_locacao .
+
+    METHODS get_id
+      IMPORTING
+        !id_veic TYPE zvtde_veiculo
+        !id_cli  TYPE zvtde_cliente
+      RETURNING
+        VALUE(ls_loc) TYPE zvtdt_locacao .
+
+  PROTECTED SECTION.
+  PRIVATE SECTION.
+ENDCLASS.
+
+
+
+CLASS zvtdcl_locacao IMPLEMENTATION.
+
+  METHOD constructor.
+    me->_cliente = cliente.
+    me->_veiculo = veiculo.
+  ENDMETHOD.
+
+
+  METHOD registrar.
+
+    DATA: ls_locacao TYPE zvtdt_locacao,
+          lv_id      TYPE num,
+          ls_veiculo TYPE zvtdt_veiculo.
+
+    " 1) Gera ID sequencial (mantido do seu padrão)
+    SELECT MAX( id_locacao )
+      FROM zvtdt_locacao
+      INTO @lv_id.
+
+    IF lv_id IS INITIAL.
+      lv_id = '0001'.
+    ELSE.
+      lv_id = lv_id + 1.
+    ENDIF.
+
+    " 2) Monta registro da locação
+    CLEAR ls_locacao.
+    ls_locacao-mandt               = sy-mandt.
+    ls_locacao-id_locacao          = lv_id.
+    ls_locacao-id_cliente          = id_cliente.
+    ls_locacao-id_veiculo          = id_veiculo.
+    ls_locacao-data_retirada       = data_retirada.
+    ls_locacao-data_prev_devolucao = prev_devolucao.
+    ls_locacao-data_devolucao      = '00000000'.
+    ls_locacao-status_locacao      = status_locacao.
+
+    " 3) Insere locação
+    INSERT zvtdt_locacao FROM @ls_locacao.
+    IF sy-subrc <> 0.
+      ROLLBACK WORK.
+      MESSAGE 'Erro ao inserir locação.' TYPE 'E'.
+    ENDIF.
+
+    " 4) Atualiza status do veículo (ex.: A = alugado)
+    SELECT SINGLE *
+      FROM zvtdt_veiculo
+      INTO @ls_veiculo
+      WHERE id_veiculo = @id_veiculo.
+
+    IF sy-subrc <> 0.
+      ROLLBACK WORK.
+      MESSAGE 'Veículo não encontrado.' TYPE 'E'.
+    ENDIF.
+
+    ls_veiculo-status_veiculo = 'A'.
+
+    MODIFY zvtdt_veiculo FROM @ls_veiculo.
+    IF sy-subrc <> 0.
+      ROLLBACK WORK.
+      MESSAGE 'Erro ao alterar veículo.' TYPE 'E'.
+    ENDIF.
+
+    COMMIT WORK.
+    MESSAGE 'Locação inserida com sucesso.' TYPE 'S'.
+
+  ENDMETHOD.
+
+
+  METHOD registrar_dev.
+
+    DATA: ls_loc       TYPE zvtdt_locacao,
+          ls_veiculo   TYPE zvtdt_veiculo,
+          lv_loc_hist  TYPE num,
+          ls_loc_hist  TYPE zvtdt_loc_hist,
+          gv_preco     TYPE REF TO zvtdcl_srv_financeiro,
+          lv_total     TYPE zvtde_valor_total,
+          lv_multa     TYPE zvtde_valor_multa,
+          lv_moeda     TYPE zvtde_moeda.
+
+    " 1) Busca a locação
+    SELECT SINGLE *
+      FROM zvtdt_locacao
+      INTO @ls_loc
+      WHERE id_locacao = @id_locacao.
+
+    IF sy-subrc <> 0.
+      MESSAGE 'Nenhuma locação encontrada com o ID informado.' TYPE 'E'.
+    ENDIF.
+
+    " Evita devolver 2x (opcional, mas recomendado)
+    IF ls_loc-status_locacao = 'F'.
+      MESSAGE 'Locação já se encontra devolvida.' TYPE 'E'.
+    ENDIF.
+
+    " 2) Busca veículo da locação (precisa de tipo e placa)
+    SELECT SINGLE *
+      FROM zvtdt_veiculo
+      INTO @ls_veiculo
+      WHERE id_veiculo = @ls_loc-id_veiculo.
+
+    IF sy-subrc <> 0.
+      MESSAGE 'Veículo não encontrado para a locação.' TYPE 'E'.
+    ENDIF.
+
+    " 3) Calcula valores (agora retorna total/multa/moeda)
+    CREATE OBJECT gv_preco
+      EXPORTING
+        tipo_veiculo = ls_veiculo-tipo_veiculo.
+
+    gv_preco->preco_total(
+      EXPORTING
+        tipo_veiculo        = ls_veiculo-tipo_veiculo
+        data_retirada       = ls_loc-data_retirada
+        data_prev_devolucao = ls_loc-data_prev_devolucao
+        data_devolucao      = data_devolucao
+        placa               = ls_veiculo-placa
+      IMPORTING
+        valor_total         = lv_total
+        valor_multa         = lv_multa
+        moeda               = lv_moeda
+    ).
+
+    " 4) Atualiza locação
+    ls_loc-data_devolucao = data_devolucao.
+    ls_loc-status_locacao = status_locacao.
+
+    MODIFY zvtdt_locacao FROM @ls_loc.
+    IF sy-subrc <> 0.
+      ROLLBACK WORK.
+      MESSAGE 'Erro ao fazer a devolução.' TYPE 'E'.
+    ENDIF.
+
+    " 5) Atualiza veículo (D = disponível/devolvido, conforme seu padrão)
+    ls_veiculo-status_veiculo = 'D'.
+
+    MODIFY zvtdt_veiculo FROM @ls_veiculo.
+    IF sy-subrc <> 0.
+      ROLLBACK WORK.
+      MESSAGE 'Erro ao alterar veículo.' TYPE 'E'.
+    ENDIF.
+
+    " 6) Gera ID sequencial do histórico (mantido do seu padrão)
+    SELECT MAX( id_loc_historico )
+      FROM zvtdt_loc_hist
+      INTO @lv_loc_hist.
+
+    IF lv_loc_hist IS INITIAL.
+      lv_loc_hist = '0001'.
+    ELSE.
+      lv_loc_hist = lv_loc_hist + 1.
+    ENDIF.
+
+    " 7) Preenche e insere histórico
+    CLEAR ls_loc_hist.
+    ls_loc_hist-mandt               = sy-mandt.
+    ls_loc_hist-id_loc_historico    = lv_loc_hist.
+    ls_loc_hist-id_locacao          = ls_loc-id_locacao.
+    ls_loc_hist-id_cliente          = ls_loc-id_cliente.
+    ls_loc_hist-id_veiculo          = ls_loc-id_veiculo.
+    ls_loc_hist-data_retirada       = ls_loc-data_retirada.
+    ls_loc_hist-data_prev_devolucao = ls_loc-data_prev_devolucao.
+    ls_loc_hist-data_devolucao      = data_devolucao.
+
+    ls_loc_hist-valor_total         = lv_total.
+    ls_loc_hist-valor_multa         = lv_multa.
+    ls_loc_hist-moeda               = lv_moeda.
+
+    INSERT zvtdt_loc_hist FROM @ls_loc_hist.
+    IF sy-subrc <> 0.
+      ROLLBACK WORK.
+      MESSAGE 'Erro ao adicionar histórico de locação.' TYPE 'E'.
+    ENDIF.
+
+    COMMIT WORK.
+    MESSAGE 'Devolução realizada com sucesso.' TYPE 'S'.
+
+  ENDMETHOD.
+
+
+  METHOD get_id.
+
+    SELECT SINGLE a~*
+      FROM zvtdt_locacao AS a
+      INNER JOIN zvtdt_cliente AS b ON a~id_cliente = b~id_cliente
+      INNER JOIN zvtdt_veiculo AS c ON a~id_veiculo = c~id_veiculo
+      WHERE b~id_cliente = @id_cli
+        AND c~id_veiculo = @id_veic
+        AND a~status_locacao = 'A'
+      INTO @ls_loc.
+
+  ENDMETHOD.
+
+ENDCLASS.
