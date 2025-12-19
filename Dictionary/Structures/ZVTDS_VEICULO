@@ -1,0 +1,13 @@
+@EndUserText.label : 'Estrutura - Veiculo'
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
+define structure zvtds_veiculo {
+
+  id_veiculo     : zvtde_veiculo;
+  modelo         : zvtde_modelo;
+  marca          : zvtde_marca;
+  ano            : zvtde_ano;
+  placa          : zvtde_placa;
+  tipo_veiculo   : zvtde_tipo_veic;
+  status_veiculo : zvtde_status_veic;
+
+}
