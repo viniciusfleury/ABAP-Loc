@@ -1,0 +1,62 @@
+class ZVTDCL_CLIENTE definition
+  public
+  final
+  create public .
+
+public section.
+
+  data _CPF type ZVTDE_CPF .
+
+  methods CONSTRUCTOR
+    importing
+      !CLIENTE_1 type ZVTDE_CPF .
+  methods CLIENTE_DISP
+    returning
+      value(VALID) type STRING .
+  methods GET_ID
+    returning
+      value(ID_CLI) type ZVTDE_CLIENTE .
+protected section.
+private section.
+ENDCLASS.
+
+
+
+CLASS ZVTDCL_CLIENTE IMPLEMENTATION.
+
+
+METHOD cliente_disp.
+*    verifica se o cliete esta com o status ativo
+    DATA lt_cli TYPE TABLE OF zvtdt_cliente.
+
+    SELECT * FROM zvtdt_cliente INTO TABLE @lt_cli WHERE cpf = @me->_cpf.
+
+    IF lt_cli IS INITIAL.
+      valid = 'I'.
+    ELSE.
+      LOOP AT lt_cli ASSIGNING FIELD-SYMBOL(<fs_cliente>).
+        IF <fs_cliente>-status_cliente = 'A'.
+          valid = 'A'.
+        ELSE.
+          valid = 'I'.
+        ENDIF.
+      ENDLOOP.
+    ENDIF.
+ENDMETHOD.
+
+
+  method CONSTRUCTOR.
+    me->_CPF = CLIENTE_1.
+  endmethod.
+
+
+  METHOD get_id.
+    DATA lt_cli TYPE TABLE OF zvtdt_cliente.
+
+    SELECT * FROM zvtdt_cliente INTO TABLE @lt_cli WHERE cpf = @me->_cpf.
+
+    LOOP AT lt_cli ASSIGNING FIELD-SYMBOL(<fs_cliente>).
+      id_cli = <fs_cliente>-id_cliente.
+    ENDLOOP.
+ENDMETHOD.
+ENDCLASS.
