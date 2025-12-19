@@ -1,0 +1,131 @@
+*&---------------------------------------------------------------------*
+*& Report ZVTDR_ALV_LOCACOES_HIST
+*&---------------------------------------------------------------------*
+REPORT zvtdr_alv_locacoes_hist.
+
+CLASS lcl_main DEFINITION.
+
+  PUBLIC SECTION.
+    CLASS-METHODS main.
+
+    TYPES: BEGIN OF ty_hist,
+             id_loc_historico    TYPE zvtde_loc_hist,
+             id_locacao          TYPE zvtde_locacao,
+             id_cliente          TYPE zvtde_cliente,
+             nome_cliente        TYPE zvtde_nome,
+             id_veiculo          TYPE zvtde_veiculo,
+             modelo              TYPE zvtde_modelo,
+             marca               TYPE zvtde_marca,
+             placa               TYPE zvtde_placa,
+             data_retirada       TYPE zvtde_data_retirada,
+             data_prev_devolucao TYPE zvtde_prev_devol,
+             data_devolucao      TYPE zvtde_data_devol,
+
+             moeda               TYPE zvtde_moeda,
+             valor_total         TYPE zvtde_valor_total,
+             valor_multa         TYPE zvtde_valor_multa,
+           END OF ty_hist.
+
+    CLASS-DATA: gt_hist TYPE TABLE OF ty_hist,
+                gv_loc  TYPE zvtde_locacao,
+                gv_cli  TYPE zvtde_cliente,
+                gv_vei  TYPE zvtde_veiculo,
+                gv_ret  TYPE zvtde_data_retirada,
+                gv_dev  TYPE zvtde_data_devol.
+
+  PRIVATE SECTION.
+    CLASS-METHODS: get_data, display_data.
+
+ENDCLASS.
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.
+
+  SELECT-OPTIONS: r_loc FOR lcl_main=>gv_loc,
+                  r_cli FOR lcl_main=>gv_cli,
+                  r_vei FOR lcl_main=>gv_vei,
+                  r_ret FOR lcl_main=>gv_ret,
+                  r_dev FOR lcl_main=>gv_dev.
+
+SELECTION-SCREEN END OF BLOCK b1.
+
+CLASS lcl_main IMPLEMENTATION.
+
+  METHOD main.
+    get_data( ).
+    display_data( ).
+  ENDMETHOD.
+
+  METHOD get_data.
+
+    SELECT
+      h~id_loc_historico,
+      h~id_locacao,
+      h~id_cliente,
+      h~id_veiculo,
+      h~data_retirada,
+      h~data_prev_devolucao,
+      h~data_devolucao,
+
+      h~moeda,
+      h~valor_total,
+      h~valor_multa,
+
+      c~nome  AS nome_cliente,
+      v~placa AS placa,
+      v~modelo,
+      v~marca
+      FROM zvtdt_loc_hist AS h
+      LEFT JOIN zvtdt_cliente AS c
+        ON c~id_cliente = h~id_cliente
+      LEFT JOIN zvtdt_veiculo AS v
+        ON v~id_veiculo = h~id_veiculo
+      WHERE h~id_locacao     IN @r_loc
+        AND h~id_cliente     IN @r_cli
+        AND h~id_veiculo     IN @r_vei
+        AND h~data_retirada  IN @r_ret
+        AND h~data_devolucao IN @r_dev
+      INTO CORRESPONDING FIELDS OF TABLE @gt_hist.
+
+    SORT gt_hist BY data_retirada id_loc_historico.
+
+    IF gt_hist IS INITIAL.
+      MESSAGE TEXT-002 TYPE 'E'.
+      LEAVE LIST-PROCESSING.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD display_data.
+
+    TRY.
+        cl_salv_table=>factory(
+          IMPORTING
+            r_salv_table = DATA(lo_salv)
+          CHANGING
+            t_table      = gt_hist
+        ).
+      CATCH cx_salv_msg.
+        RETURN.
+    ENDTRY.
+
+    lo_salv->get_functions( )->set_all( ).
+    lo_salv->get_columns( )->set_optimize( ).
+
+    "Opcional: ajustar textos das colunas
+    TRY.
+        DATA(lo_cols) = lo_salv->get_columns( ).
+        lo_cols->get_column( 'VALOR_TOTAL' )->set_long_text( 'Valor total' ).
+        lo_cols->get_column( 'VALOR_MULTA' )->set_long_text( 'Valor da multa' ).
+        lo_cols->get_column( 'MOEDA' )->set_long_text( 'Moeda' ).
+      CATCH cx_salv_not_found.
+        "ignora se algum nome não bater (ex.: ajuste de maiúsculas)
+    ENDTRY.
+
+    lo_salv->display( ).
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+START-OF-SELECTION.
+  lcl_main=>main( ).
