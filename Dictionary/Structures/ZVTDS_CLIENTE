@@ -1,0 +1,12 @@
+@EndUserText.label : 'Estrutura - Cliente'
+@AbapCatalog.enhancement.category : #NOT_EXTENSIBLE
+define structure zvtds_cliente {
+
+  id_cliente     : zvtde_cliente;
+  nome           : zvtde_nome;
+  cpf            : zvtde_cpf;
+  telefone       : zvtde_telefone;
+  email          : zvtde_email;
+  status_cliente : zvtde_status_cli;
+
+}
