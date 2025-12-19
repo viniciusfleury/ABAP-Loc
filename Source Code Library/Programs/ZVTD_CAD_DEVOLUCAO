@@ -1,0 +1,179 @@
+*&---------------------------------------------------------------------*
+*& Report ZVTD_CAD_DEVOLUCAO
+*&---------------------------------------------------------------------*
+*&
+*&---------------------------------------------------------------------*
+REPORT zvtd_cad_devolucao.
+CLASS lcl_main DEFINITION.
+
+  PUBLIC SECTION.
+    CLASS-METHODS main.
+
+    TYPES: BEGIN OF ty_d_dev,
+             id_loc_historico    TYPE zvtde_loc_hist,
+             id_locacao          TYPE zvtde_locacao,
+             id_cliente          TYPE zvtde_cliente,
+             nome                TYPE zvtde_nome,
+             cpf                 TYPE zvtde_cpf,
+             id_veiculo          TYPE zvtde_veiculo,
+             placa               TYPE zvtde_placa,
+             tipo_veiculo        TYPE zvtde_tipo_veic,
+             desc_tipo_veiculo   TYPE zvtde_desc_tipo_veic,
+             data_retirada       TYPE zvtde_data_retirada,
+             data_prev_devolucao TYPE zvtde_prev_devol,
+             data_devolucao      TYPE zvtde_data_devol,
+             valor_total         TYPE zvtde_valor_total,
+             valor_multa         TYPE zvtde_valor_multa,
+             preco               TYPE zvtde_preco,
+             multa               TYPE zvtde_multa,
+           END OF ty_d_dev.
+
+*Variaveis Globais
+    CLASS-DATA: vg_veiculo    TYPE REF TO zvtdcl_veiculo,
+                vg_cliente    TYPE REF TO zvtdcl_cliente,
+                vg_locacao    TYPE REF TO zvtdcl_locacao,
+                vg_lv_cliente TYPE string,
+                vg_lv_veiculo TYPE string.
+
+  PRIVATE SECTION.
+
+*   Métodos e atributos para o processamento do programa
+    CLASS-METHODS: instance_locacao, devolucao.
+
+ENDCLASS.
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.
+
+  PARAMETERS: v_cpf    TYPE zvtde_cpf OBLIGATORY,
+              v_placa  TYPE zvtde_placa OBLIGATORY,
+              v_dt_dev TYPE zvtde_data_devol OBLIGATORY.
+
+SELECTION-SCREEN END OF BLOCK b1.
+
+CLASS lcl_main IMPLEMENTATION.
+
+  METHOD main.
+
+    lcl_main=>instance_locacao( ).
+
+    devolucao( ).
+
+  ENDMETHOD.
+
+  METHOD instance_locacao.
+
+    CREATE OBJECT vg_veiculo
+      EXPORTING
+        veiculo_1 = v_placa.
+
+    CREATE OBJECT vg_cliente
+      EXPORTING
+        cliente_1 = v_cpf.
+
+    CREATE OBJECT vg_locacao
+      EXPORTING
+        cliente = vg_cliente
+        veiculo = vg_veiculo.
+
+  ENDMETHOD.
+
+  METHOD devolucao.
+
+    DATA: v_id_c      TYPE zvtde_cliente,
+          v_id_v      TYPE zvtde_veiculo,
+          v_id_l      TYPE zvtdt_locacao,
+          ls_loc_hist TYPE zvtdt_loc_hist,
+          vt_d_dev    TYPE TABLE OF ty_d_dev.
+
+    vg_lv_cliente = vg_cliente->cliente_disp( ).
+    IF vg_lv_cliente = 'I'.
+      MESSAGE 'Cliente não valido.' TYPE 'E'.
+    ENDIF.
+
+    vg_lv_veiculo = vg_veiculo->veiculo_disp( ).
+    IF vg_lv_veiculo <> 'A'.
+      MESSAGE 'Veículo não valido' TYPE 'E'.
+    ENDIF.
+
+    v_id_c = vg_cliente->get_id( ).
+    v_id_v = vg_veiculo->get_id( ).
+    v_id_l = vg_locacao->get_id(
+               id_veic = v_id_v
+               id_cli  = v_id_c
+             ).
+
+    vg_locacao->registrar_dev(
+      data_devolucao = v_dt_dev
+      status_locacao = 'F'
+      id_locacao     = v_id_l-id_locacao
+    ).
+
+    SELECT
+       lh~id_loc_historico,
+      lh~id_locacao,
+      lh~id_cliente,
+      lh~id_veiculo,
+      lh~data_retirada,
+      lh~data_prev_devolucao,
+      lh~data_devolucao,
+      lh~valor_total,
+      lh~valor_multa,
+      c~nome,
+      c~cpf,
+      v~placa,
+      v~tipo_veiculo,
+      p~preco,
+      p~multa
+  FROM zvtdt_loc_hist AS lh
+  INNER JOIN zvtdt_cliente AS c
+          ON c~id_cliente = lh~id_cliente
+  INNER JOIN zvtdt_veiculo AS v
+          ON v~id_veiculo = lh~id_veiculo
+  INNER JOIN zvtdt_preco AS p
+          ON p~tipo_veiculo = v~tipo_veiculo
+  WHERE lh~id_locacao = @v_id_l-id_locacao
+  INTO CORRESPONDING FIELDS OF TABLE @vt_d_dev.
+
+    SORT vt_d_dev  BY id_locacao.
+
+    SELECT domvalue_l, ddlanguage, ddtext
+          FROM dd07v
+          INTO TABLE @DATA(lt_tipo)
+          WHERE domname    = 'ZVTDD_TIPO_VEIC'   " <-- AJUSTE se necessário
+            AND ddlanguage = @sy-langu.
+
+    SORT lt_tipo BY domvalue_l.
+
+    LOOP AT vt_d_dev ASSIGNING FIELD-SYMBOL(<fs_loc>).
+      READ TABLE lt_tipo INTO DATA(ls_tipo)
+        WITH KEY domvalue_l = <fs_loc>-tipo_veiculo.
+      IF sy-subrc = 0.
+        <fs_loc>-desc_tipo_veiculo = ls_tipo-ddtext.
+      ENDIF.
+    ENDLOOP.
+
+    READ TABLE vt_d_dev INTO DATA(ls_dev) INDEX 1.
+
+    IF sy-subrc <> 0.
+      MESSAGE 'Erro ao mostrar os dados da devolução' TYPE 'E'.
+    ENDIF.
+
+    " Exibição simples no output do report
+    WRITE: / 'CPF:   ', ls_dev-cpf,
+           / 'Nome:  ', ls_dev-nome,
+           / 'Placa:   ', ls_dev-placa,
+           / 'Tipo do veículo:', ls_dev-desc_tipo_veiculo,
+           / 'Preço da diaria: R$ ', ls_dev-preco,
+           / 'Preço da multa diaria: R$ ', ls_dev-multa,
+           / 'Data da Retirada do veículo:', ls_dev-data_retirada,
+           / 'Data da Previsão de Devolução do veículo:', ls_dev-data_prev_devolucao,
+           / 'Data da Devolução do veículo:', ls_dev-data_devolucao,
+           / 'Valor total da locação: R$ ', ls_dev-valor_total,
+           / 'Valor total da multa: R$ ', ls_dev-valor_multa.
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+START-OF-SELECTION.
+  lcl_main=>main( ).
